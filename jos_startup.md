@@ -16,7 +16,16 @@
 * 设置kernel stack
 * 长跳转，通过虚拟地址映射访问Kernel
 * 内存初始化
-	* 调用boot_alloc，从end地址开始（4k对齐）分配一个PGSIZE（PGSIZE=4k）。返回的指针作为kern_pgdir的地址（0xf011 5000）供给内核建立页目录.
-	* 然后建立kern_pgdir虚拟地址到物理地址的映射（0xf011 5000 -> 0x0011 5000）， 并将kern_pgdir[957]设置PTE_U | PTE_P;
-	* 为pages开辟内存，开辟内存的大小为物理内存页npages * sizeof(struct PageInfo)
+	*  内核页表初始化： 	
+		* 调用boot\_alloc，从end地址开始（4k对齐）分配一个PGSIZE（PGSIZE=4k）。返回的指针作为kern\_pgdir的地址（0xf011 6000）供给内核建立页目录. kern\_pgdir范围 [0xf011 6000, 0xf011 7000)
+		* 然后建立kern\_pgdir虚拟地址到物理地址的映射（0xf011 6000 -> 0x0011 6000）， 并将kern\_pgdir[957]设置PTE_U | PTE_P;
+	* 内核页表项初始化：
+		* 为pages开辟内存，开辟内存的大小为物理内存页(npages = 0x8000), npages * sizeof(struct PageInfo) = 32768 * 8 bytes = 32k bytes，[0xf011 7000, 0xf015 7000);
+		* pages[0]保留作为BIOS和RealMode的IDT，大小为4k，一个页的大小。 0xf011 7008为page[1];
+		*  pgdir[0]管理pages[0]-pages[1023]一共1024个页，总计内存1024 * 4KB = 4MB内存
+			*  &pages[0] = 0xf011 7000, &pages[1024] = 0xf011 9000
+			*  管理的物理内存范围 [0x0000 0000, 0x0040 0000]，虚拟内存范围[0xf000 0000, 0xf040 0000]
+		* 将0xA0000以下的物理内存页（Base memory），初始化为未使用。
+		* 将I/O映射的部分内存页保留（Base memory -> BIOS_end, i.e. [0xA0000, 0x100000]），并设置为已使用, 不能被操作系统分配使用。
+		* [0x100000, UPPER]排除已经分配的虚拟页（已经映射的），全都设置为未使用。
 	* 
